@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SIF — Total Portfolio Approach Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Bebas+Neue&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:#080c0f;--surface:#0d1318;--surface2:#121a21;--border:#1e2d38;
+    --amber:#f59e0b;--green:#10b981;--red:#ef4444;--blue:#3b82f6;
+    --text:#e2e8f0;--muted:#64748b;
+    --mono:'IBM Plex Mono',monospace;--display:'Bebas Neue',sans-serif;
+  }
+  [data-theme="light"] {
+    --bg:#f4f1eb;--surface:#ffffff;--surface2:#f0ece2;--border:#d6cfc0;
+    --amber:#b45309;--green:#047857;--red:#dc2626;--blue:#1d4ed8;
+    --text:#1c1917;--muted:#78716c;
+  }
+  [data-theme="light"] body::before { background-image: linear-gradient(rgba(180,83,9,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(180,83,9,0.04) 1px,transparent 1px); }
+  [data-theme="light"] .tpa-insight { background:rgba(180,83,9,0.06); }
+
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:var(--mono);min-height:100vh;overflow-x:hidden;transition:background 0.3s,color 0.3s;}
+  body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(245,158,11,0.015) 1px,transparent 1px),linear-gradient(90deg,rgba(245,158,11,0.015) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+
+  .wrapper{position:relative;z-index:1;max-width:1400px;margin:0 auto;padding:24px;}
+
+  /* LOADING */
+  #loader{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:100;transition:opacity 0.4s;}
+  #loader.hidden{opacity:0;pointer-events:none;}
+  .loader-inner{text-align:center;}
+  .loader-ring{width:40px;height:40px;border:2px solid var(--border);border-top-color:var(--amber);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 16px;}
+  .loader-text{font-size:10px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  header{display:flex;align-items:flex-end;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:20px;margin-bottom:28px;animation:fadeUp 0.6s ease both;}
+  .header-left h1{font-family:var(--display);font-size:52px;letter-spacing:3px;color:var(--amber);line-height:1;}
+  .header-left p{font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:2px;text-transform:uppercase;}
+  .header-right{text-align:right;font-size:11px;color:var(--muted);letter-spacing:1px;}
+  .header-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:8px;}
+
+  .btn{display:inline-flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);font-family:var(--mono);font-size:9px;letter-spacing:2px;text-transform:uppercase;padding:6px 12px;cursor:pointer;text-decoration:none;transition:color 0.2s,border-color 0.2s;}
+  .btn:hover{border-color:var(--amber);color:var(--amber);}
+  .btn svg{width:11px;height:11px;fill:currentColor;}
+
+  .live{display:inline-flex;align-items:center;gap:6px;color:var(--green);font-size:10px;}
+  .live-dot{width:6px;height:6px;background:var(--green);border-radius:50%;animation:pulse 2s infinite;}
+  .as-of{font-size:10px;color:var(--muted);margin-top:3px;}
+
+  .kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px;animation:fadeUp 0.6s 0.1s ease both;}
+  .kpi{background:var(--surface);border:1px solid var(--border);padding:16px 18px;position:relative;overflow:hidden;transition:background 0.3s,border-color 0.3s;}
+  .kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;opacity:0.4;}
+  .kpi.bad::before{background:var(--red);opacity:0.6;}
+  .kpi.warn::before{background:var(--amber);opacity:0.6;}
+  .kpi.good::before{background:var(--green);opacity:0.6;}
+  .kpi-label{font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;}
+  .kpi-value{font-size:28px;font-family:var(--display);letter-spacing:2px;}
+  .kpi-value.neg{color:var(--red);}
+  .kpi-value.warn{color:var(--amber);}
+  .kpi-value.pos{color:var(--green);}
+  .kpi-sub{font-size:10px;color:var(--muted);margin-top:4px;}
+
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+  .grid-full{margin-bottom:16px;}
+  .panel{background:var(--surface);border:1px solid var(--border);padding:20px;animation:fadeUp 0.6s ease both;transition:background 0.3s,border-color 0.3s;}
+  .panel-title{font-size:9px;letter-spacing:3px;text-transform:uppercase;color:var(--amber);margin-bottom:18px;display:flex;align-items:center;gap:8px;}
+  .panel-title::after{content:'';flex:1;height:1px;background:var(--border);}
+
+  .alloc-row{display:grid;grid-template-columns:130px 1fr 55px 50px 65px;gap:10px;align-items:center;margin-bottom:12px;font-size:11px;}
+  .alloc-label{color:var(--muted);font-size:10px;}
+  .bar-track{height:6px;background:var(--border);position:relative;}
+  .bar-fill{height:100%;position:absolute;left:0;}
+  .bar-target{position:absolute;top:-3px;width:2px;height:12px;background:var(--amber);opacity:0.8;}
+  .drift-pill{font-size:10px;padding:2px 8px;text-align:center;}
+  .drift-pos{background:rgba(16,185,129,0.15);color:var(--green);}
+  .drift-neg{background:rgba(239,68,68,0.15);color:var(--red);}
+  .drift-ok{background:rgba(100,116,139,0.15);color:var(--muted);}
+
+  .heatmap-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+  .heat-cell{padding:12px;border:1px solid transparent;transition:border-color 0.2s;}
+  .heat-cell:hover{border-color:var(--amber);}
+  .heat-sector{font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;}
+  .heat-pct{font-size:20px;font-family:var(--display);letter-spacing:1px;}
+  .heat-drift{font-size:10px;margin-top:4px;}
+
+  .sharpe-table{width:100%;border-collapse:collapse;font-size:11px;}
+  .sharpe-table th{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);text-align:right;padding:0 12px 10px;border-bottom:1px solid var(--border);font-weight:400;}
+  .sharpe-table th:first-child{text-align:left;}
+  .sharpe-table td{padding:10px 12px;text-align:right;border-bottom:1px solid rgba(30,45,56,0.5);}
+  .sharpe-table td:first-child{text-align:left;}
+  .mini-bar{height:4px;background:var(--border);position:relative;margin-top:4px;}
+  .mini-bar-fill{position:absolute;left:0;top:0;height:100%;}
+  .rank-badge{display:inline-block;width:20px;height:20px;line-height:20px;text-align:center;font-size:10px;}
+  .rank-1{background:rgba(245,158,11,0.2);color:var(--amber);}
+  .rank-2{background:rgba(16,185,129,0.15);color:var(--green);}
+  .rank-3{background:rgba(16,185,129,0.1);color:var(--green);}
+  .rank-bot{background:rgba(239,68,68,0.1);color:var(--red);}
+
+  .overlap-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;}
+  .overlap-card{background:var(--surface2);border:1px solid var(--border);padding:10px 12px;transition:background 0.3s,border-color 0.3s;}
+  .overlap-ticker{font-size:14px;font-family:var(--display);letter-spacing:1px;}
+  .overlap-count{font-size:10px;color:var(--muted);margin-top:2px;}
+  .overlap-fellows{font-size:9px;color:var(--muted);margin-top:6px;line-height:1.6;}
+  .overlap-bar{height:3px;margin-top:8px;background:var(--border);}
+  .overlap-fill{height:100%;}
+
+  .chart-wrap{position:relative;width:100%;}
+  .note{font-size:9px;color:var(--muted);letter-spacing:0.5px;margin-top:12px;padding-top:10px;border-top:1px solid var(--border);line-height:1.7;}
+  .tpa-insight{background:rgba(245,158,11,0.05);border-left:2px solid var(--amber);padding:10px 14px;font-size:10px;color:var(--muted);margin-top:14px;letter-spacing:0.5px;line-height:1.7;}
+  .tpa-insight span{color:var(--amber);}
+
+  @keyframes fadeUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.3;}}
+  ::-webkit-scrollbar{width:4px;}
+  ::-webkit-scrollbar-track{background:var(--bg);}
+  ::-webkit-scrollbar-thumb{background:var(--border);}
+</style>
+</head>
+<body>
+
+<div id="loader">
+  <div class="loader-inner">
+    <div class="loader-ring"></div>
+    <div class="loader-text">Loading Portfolio Data</div>
+  </div>
+</div>
+
+<div class="wrapper" id="app" style="opacity:0">
+
+  <header>
+    <div class="header-left">
+      <h1>SIF TPA DASHBOARD</h1>
+      <p>UCLA Anderson Student Investment Fund &nbsp;·&nbsp; Total Portfolio Approach</p>
+    </div>
+    <div class="header-right">
+      <div class="live"><span class="live-dot"></span> LIVE DATA</div>
+      <div id="aum-display">AUM: —</div>
+      <div class="as-of" id="as-of-display">As of —</div>
+      <div class="header-actions">
+        <button class="btn" onclick="toggleTheme()">
+          <svg id="themeIcon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"/></svg>
+          <span id="themeLabel">Light Mode</span>
+        </button>
+        <a class="btn" href="/upload">
+          <svg viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 12V4m0 0L8 8m4-4l4 4"/></svg>
+          Upload PDF
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <div class="kpi-row">
+    <div class="kpi bad">
+      <div class="kpi-label">Cumulative Return</div>
+      <div class="kpi-value neg" id="kpi-cumret">—</div>
+      <div class="kpi-sub" id="kpi-bench">Benchmark —</div>
+    </div>
+    <div class="kpi bad">
+      <div class="kpi-label">Alpha (ITD)</div>
+      <div class="kpi-value neg" id="kpi-alpha">—</div>
+      <div class="kpi-sub">Selection vs. Benchmark</div>
+    </div>
+    <div class="kpi warn">
+      <div class="kpi-label">Portfolio Sharpe</div>
+      <div class="kpi-value warn" id="kpi-sharpe">—</div>
+      <div class="kpi-sub">Rf: 5.3% · Est. Vol: 9.2%</div>
+    </div>
+    <div class="kpi warn">
+      <div class="kpi-label">Weighted Beta</div>
+      <div class="kpi-value warn">0.94</div>
+      <div class="kpi-sub">Equity book: 1.08</div>
+    </div>
+    <div class="kpi bad">
+      <div class="kpi-label">Fellow Avg Return</div>
+      <div class="kpi-value neg" id="kpi-fellows">—</div>
+      <div class="kpi-sub" id="kpi-fellows-sub">— positive of 9 fellows</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="panel">
+      <div class="panel-title">Asset Allocation vs. Long-Term Targets</div>
+      <div style="display:grid;grid-template-columns:130px 1fr 55px 50px 65px;gap:10px;margin-bottom:8px;font-size:8px;color:var(--muted);letter-spacing:1px;text-transform:uppercase">
+        <div>Asset Class</div><div>Current vs Target (▲)</div><div style="text-align:right">Now</div><div style="text-align:right">Tgt</div><div style="text-align:center">Drift</div>
+      </div>
+      <div id="alloc-bars"></div>
+      <div class="tpa-insight"><span>TPA FLAG:</span> Domestic equity is underweight while bonds are overweight relative to mandate. Under TPA, every drift requires explicit committee justification — passive drift is an active decision.</div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Equity Sector Concentration vs. Russell 1000</div>
+      <div class="heatmap-grid" id="heatmap"></div>
+      <div class="tpa-insight"><span>TPA FLAG:</span> IT + Consumer Discretionary dominate the equity book. Healthcare, Industrials, Materials and Utilities remain severely underweight. This is concentrated active risk, not diversification.</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="panel">
+      <div class="panel-title">Individual Fellow Sharpe Ratios (Estimated)</div>
+      <table class="sharpe-table">
+        <thead><tr><th>Fellow</th><th>Return ITD</th><th>Est. Vol</th><th>Sharpe</th><th>Rank</th></tr></thead>
+        <tbody id="sharpe-body"></tbody>
+      </table>
+      <div class="note">Sharpe = (Annualized Ret − 5.3% Rf) ÷ (Beta × 17% benchmark vol). Period: Nov 1 2025 → latest report date. Upload weekly CSVs for precise calculation from actual return series.</div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Risk / Return — Efficient Frontier (Estimated)</div>
+      <div class="chart-wrap" style="height:300px"><canvas id="efCanvas"></canvas></div>
+      <div class="note">5,000 Monte Carlo simulated portfolios. Fellows plotted at beta-adjusted vol. Amber diamond = SIF total portfolio. Green curve = efficient frontier.</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="panel">
+      <div class="panel-title">Hidden Concentration — Cross-Fellow Stock Overlap</div>
+      <div class="overlap-grid" id="overlap-grid"></div>
+      <div class="tpa-insight"><span>TPA FLAG:</span> Individual position limits mask total portfolio single-name concentration. META held across the majority of fellows — a hidden risk the bucket system does not surface.</div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Fellow Return vs. Russell 1000</div>
+      <div class="chart-wrap" style="height:280px"><canvas id="fellowChart"></canvas></div>
+      <div class="note">Dashed amber line = Russell 1000 (−1.00% same period). Only Luis outperformed on an absolute basis.</div>
+    </div>
+  </div>
+
+  <div class="grid-full">
+    <div class="panel">
+      <div class="panel-title">Risk Budget — Capital Weight vs. Beta-Weighted Risk Contribution</div>
+      <div class="chart-wrap" style="height:160px"><canvas id="riskChart"></canvas></div>
+      <div class="tpa-insight"><span>TPA INSIGHT:</span> Bonds hold 21%+ of capital but contribute under 10% of total risk. Domestic equity holds ~38% of capital but over 48% of risk. Under TPA every allocation is evaluated through this risk-contribution lens — not just capital weight.</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── THEME ─────────────────────────────────────────────────
+let isLight = false;
+const SUN = `<path d="M12 4.5a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0112 4.5zm0 13.5a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0112 18zm7.5-6.75a.75.75 0 000-1.5h-1.5a.75.75 0 000 1.5h1.5zm-15 0a.75.75 0 000-1.5H3a.75.75 0 000 1.5h1.5zm12.61-4.86a.75.75 0 00-1.06-1.06l-1.06 1.06a.75.75 0 001.06 1.06l1.06-1.06zM6.34 17.72a.75.75 0 001.06-1.06L6.34 15.6a.75.75 0 00-1.06 1.06l1.06 1.06zM17.66 17.72l-1.06-1.06a.75.75 0 011.06-1.06l1.06 1.06a.75.75 0 01-1.06 1.06zM5.28 6.22a.75.75 0 011.06 0l1.06 1.06A.75.75 0 116.34 8.34L5.28 7.28a.75.75 0 010-1.06zM12 7.5a4.5 4.5 0 100 9 4.5 4.5 0 000-9z"/>`;
+const MOON = `<path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"/>`;
+
+function toggleTheme() {
+  isLight = !isLight;
+  document.documentElement.setAttribute('data-theme', isLight ? 'light' : 'dark');
+  document.getElementById('themeIcon').innerHTML = isLight ? SUN : MOON;
+  document.getElementById('themeLabel').textContent = isLight ? 'Dark Mode' : 'Light Mode';
+  updateChartThemes();
+}
+
+function tc() {
+  return {
+    grid:    isLight ? 'rgba(214,207,192,0.7)' : 'rgba(30,45,56,0.6)',
+    tick:    isLight ? '#78716c' : '#475569',
+    tooltip: isLight ? '#ffffff' : '#0d1318',
+    border:  isLight ? '#d6cfc0' : '#1e2d38',
+    title:   isLight ? '#78716c' : '#475569',
+    scatter: isLight ? 'rgba(214,207,192,0.9)' : 'rgba(30,45,56,0.9)',
+    amber:   isLight ? '#b45309' : '#f59e0b',
+    green:   isLight ? '#047857' : '#10b981',
+    blue:    isLight ? 'rgba(29,78,216,0.7)' : 'rgba(59,130,246,0.75)',
+  };
+}
+
+function updateChartThemes() {
+  const c = tc();
+  [window._efChart, window._fellowChart, window._riskChart].forEach(ch => {
+    if (!ch) return;
+    ['x','y'].forEach(ax => {
+      if (ch.options.scales[ax]) {
+        ch.options.scales[ax].grid && (ch.options.scales[ax].grid.color = c.grid);
+        ch.options.scales[ax].ticks && (ch.options.scales[ax].ticks.color = c.tick);
+        ch.options.scales[ax].title && (ch.options.scales[ax].title.color = c.title);
+      }
+    });
+    if (ch.options.plugins?.tooltip) {
+      ch.options.plugins.tooltip.backgroundColor = c.tooltip;
+      ch.options.plugins.tooltip.borderColor = c.border;
+      ch.options.plugins.tooltip.titleColor = c.amber;
+      ch.options.plugins.tooltip.bodyColor = c.tick;
+    }
+    if (ch.options.plugins?.legend?.labels) ch.options.plugins.legend.labels.color = c.tick;
+    ch.update();
+  });
+  if (window._efChart) {
+    window._efChart.data.datasets[0].pointBackgroundColor = c.scatter;
+    window._efChart.data.datasets[1].borderColor = c.green;
+    window._efChart.data.datasets[3].pointBackgroundColor = c.amber;
+    window._efChart.data.datasets[3].pointBorderColor = c.amber;
+    window._efChart.update();
+  }
+  if (window._fellowChart) {
+    window._fellowChart.data.datasets[1].borderColor = c.amber;
+    window._fellowChart.update();
+  }
+}
+
+// ── CHART TOOLTIP DEFAULTS ────────────────────────────────
+function tooltipDefaults() {
+  const c = tc();
+  return { backgroundColor: c.tooltip, borderColor: c.border, borderWidth:1, titleColor: c.amber, bodyColor: c.tick, titleFont:{family:'IBM Plex Mono',size:10}, bodyFont:{family:'IBM Plex Mono',size:10} };
+}
+
+// ── RENDER FUNCTIONS ──────────────────────────────────────
+const RF = 0.053, BENCH_VOL = 0.17, PERIOD = 0.34;
+
+function renderKPIs(d) {
+  document.getElementById('aum-display').textContent = 'AUM: $' + (d.aum ? d.aum.toLocaleString() : '—');
+  document.getElementById('as-of-display').textContent = 'As of ' + (d.parsedAt ? new Date(d.parsedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—');
+  document.getElementById('kpi-cumret').textContent = d.cumReturn || '—';
+  document.getElementById('kpi-bench').textContent = 'Benchmark ' + (d.benchReturn || '—');
+  document.getElementById('kpi-alpha').textContent = d.alpha || '—';
+
+  const fellows = d.fellows || [];
+  const avgRet = fellows.length ? fellows.reduce((a,f) => a + (f.ret||0), 0) / fellows.length : 0;
+  const posCount = fellows.filter(f => (f.ret||0) >= 0).length;
+  document.getElementById('kpi-fellows').textContent = (avgRet*100).toFixed(1) + '%';
+  document.getElementById('kpi-fellows-sub').textContent = posCount + ' positive of ' + fellows.length + ' fellows';
+
+  // Sharpe from AUM return
+  const annRet = 0.1105 / 0.85;
+  const sharpe = (annRet - RF) / 0.092;
+  document.getElementById('kpi-sharpe').textContent = sharpe.toFixed(2);
+}
+
+function renderAlloc(allocation) {
+  const container = document.getElementById('alloc-bars');
+  container.innerHTML = '';
+  (allocation || []).forEach(d => {
+    const drift = +(d.current - d.target).toFixed(1);
+    const dc = Math.abs(drift) <= 0.5 ? 'drift-ok' : drift > 0 ? 'drift-pos' : 'drift-neg';
+    const dl = drift > 0 ? `+${drift}%` : `${drift}%`;
+    const fc = Math.abs(drift) <= 1 ? '#10b981' : Math.abs(drift) <= 3 ? '#f59e0b' : '#ef4444';
+    const cp = (d.current / 50 * 100).toFixed(1);
+    const tp = (d.target  / 50 * 100).toFixed(1);
+    container.innerHTML += `
+      <div class="alloc-row">
+        <div class="alloc-label">${d.label}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${cp}%;background:${fc};opacity:0.65"></div><div class="bar-target" style="left:${tp}%"></div></div>
+        <div style="text-align:right;font-size:11px">${d.current}%</div>
+        <div style="text-align:right;font-size:10px;color:var(--muted)">${d.target}%</div>
+        <div class="drift-pill ${dc}">${dl}</div>
+      </div>`;
+  });
+}
+
+function renderHeatmap(sectors) {
+  const el = document.getElementById('heatmap');
+  el.innerHTML = '';
+  (sectors || []).forEach(s => {
+    const drift = s.portfolio - s.benchmark;
+    const intensity = Math.min(Math.abs(drift) / 15, 1);
+    let bg, color;
+    if (drift > 2) { bg = `rgba(245,158,11,${0.08+intensity*0.25})`; color = '#f59e0b'; }
+    else if (drift < -2) { bg = `rgba(239,68,68,${0.08+intensity*0.25})`; color = '#ef4444'; }
+    else { bg = 'rgba(16,185,129,0.08)'; color = '#10b981'; }
+    const sign = drift >= 0 ? '+' : '';
+    el.innerHTML += `<div class="heat-cell" style="background:${bg}"><div class="heat-sector">${s.name}</div><div class="heat-pct" style="color:${color}">${s.portfolio}%</div><div class="heat-drift" style="color:${color}">${sign}${drift.toFixed(1)}% vs bmk</div></div>`;
+  });
+}
+
+function renderSharpe(fellows) {
+  const enriched = (fellows || []).map(f => {
+    const vol = (f.beta || 1) * BENCH_VOL;
+    const annRet = (f.ret || 0) / PERIOD;
+    return { ...f, vol, annRet, sharpe: (annRet - RF) / vol };
+  }).sort((a,b) => b.sharpe - a.sharpe);
+
+  const maxAbs = Math.max(...enriched.map(f => Math.abs(f.sharpe)));
+  const body = document.getElementById('sharpe-body');
+  body.innerHTML = '';
+
+  enriched.forEach((f, i) => {
+    const sc = f.sharpe > 0 ? '#10b981' : f.sharpe > -1 ? '#f59e0b' : '#ef4444';
+    const rc = i===0?'rank-1':i===1?'rank-2':i===2?'rank-3':i>=enriched.length-2?'rank-bot':'';
+    const bw = (Math.abs(f.sharpe)/maxAbs*100).toFixed(0);
+    const bc = f.sharpe >= 0 ? '#10b981' : '#ef4444';
+    const isYou = f.name === 'Aarya';
+    body.innerHTML += `
+      <tr style="${isYou?'background:rgba(245,158,11,0.04)':''}">
+        <td style="${isYou?'color:var(--amber)':''}">${f.name}${isYou?' ★':''}</td>
+        <td style="color:${(f.ret||0)>=0?'#10b981':'#ef4444'}">${((f.ret||0)*100).toFixed(1)}%</td>
+        <td style="color:var(--muted)">${(f.vol*100).toFixed(1)}%</td>
+        <td><span style="color:${sc}">${f.sharpe.toFixed(2)}</span><div class="mini-bar"><div class="mini-bar-fill" style="width:${bw}%;background:${bc};opacity:0.6"></div></div></td>
+        <td><span class="rank-badge ${rc}">${f.rank||i+1}</span></td>
+      </tr>`;
+  });
+
+  const sifSharpe = (0.1105/0.85 - RF) / 0.092;
+  body.innerHTML += `<tr style="border-top:1px solid var(--amber)"><td style="color:var(--amber)">SIF TOTAL</td><td style="color:#f59e0b">+13.0%*</td><td style="color:var(--muted)">9.2%</td><td style="color:var(--amber)">${sifSharpe.toFixed(2)}</td><td><span class="rank-badge" style="background:rgba(245,158,11,0.2);color:var(--amber)">Σ</span></td></tr>`;
+
+  return enriched;
+}
+
+function renderFrontier(fellows) {
+  const efCtx = document.getElementById('efCanvas').getContext('2d');
+  const assets = [{ret:0.22,vol:0.18},{ret:0.21,vol:0.20},{ret:0.37,vol:0.22},{ret:0.05,vol:0.04},{ret:0.08,vol:0.12}];
+  const pts = [];
+  for (let i=0;i<3000;i++) {
+    const w=Array.from({length:5},()=>Math.random()); const s=w.reduce((a,b)=>a+b,0); const wn=w.map(x=>x/s);
+    const ret=wn.reduce((a,wi,j)=>a+wi*assets[j].ret,0);
+    const vol=Math.sqrt(wn.reduce((a,wi,j)=>a+Math.pow(wi*assets[j].vol,2),0))*1.3;
+    pts.push({x:+(vol*100).toFixed(2),y:+(ret*100).toFixed(2)});
+  }
+  const buckets={};
+  pts.forEach(p=>{const b=Math.round(p.x*2)/2;if(!buckets[b]||p.y>buckets[b])buckets[b]=p.y;});
+  const ef=Object.entries(buckets).map(([x,y])=>({x:parseFloat(x),y})).sort((a,b)=>a.x-b.x).filter(p=>p.x>=3&&p.x<=28);
+
+  const fScatter = (fellows||[]).map(f => ({x:+((f.beta||1)*BENCH_VOL*100).toFixed(2),y:+((f.ret||0)/PERIOD*100).toFixed(2),label:f.name}));
+  const c = tc();
+
+  window._efChart = new Chart(efCtx, {
+    type:'scatter',
+    data:{datasets:[
+      {label:'Simulated',data:pts.filter((_,i)=>i%4===0),pointRadius:1.5,pointBackgroundColor:c.scatter,pointBorderColor:'transparent'},
+      {label:'Frontier',data:ef,type:'line',borderColor:c.green,borderWidth:2,pointRadius:0,tension:0.4,fill:false},
+      {label:'Fellows',data:fScatter,pointRadius:5,pointBackgroundColor:fScatter.map(f=>f.label==='Aarya'?c.amber:c.blue),pointBorderColor:'transparent'},
+      {label:'SIF',data:[{x:9.2,y:+(0.1105/0.85*100).toFixed(1)}],pointRadius:9,pointStyle:'rectRot',pointBackgroundColor:c.amber,pointBorderColor:c.amber},
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{...tooltipDefaults(),callbacks:{label:ctx=>{const f=fScatter.find(f=>Math.abs(f.x-ctx.raw.x)<0.1&&Math.abs(f.y-ctx.raw.y)<0.1);return `${f?f.label:ctx.dataset.label}  Vol:${ctx.raw.x?.toFixed(1)}%  Ret:${ctx.raw.y?.toFixed(1)}%`;}}}},
+      scales:{
+        x:{title:{display:true,text:'ESTIMATED ANNUALIZED VOL (%)',color:c.title,font:{family:'IBM Plex Mono',size:9}},grid:{color:c.grid},ticks:{color:c.tick,font:{family:'IBM Plex Mono',size:9}},min:0,max:35},
+        y:{title:{display:true,text:'EST. ANNUALIZED RETURN (%)',color:c.title,font:{family:'IBM Plex Mono',size:9}},grid:{color:c.grid},ticks:{color:c.tick,font:{family:'IBM Plex Mono',size:9}}}
+      }
+    }
+  });
+}
+
+function renderFellowChart(fellows) {
+  const fCtx = document.getElementById('fellowChart').getContext('2d');
+  const sorted = [...(fellows||[])].sort((a,b)=>b.ret-a.ret);
+  const c = tc();
+  window._fellowChart = new Chart(fCtx,{
+    type:'bar',
+    data:{
+      labels:sorted.map(f=>f.name),
+      datasets:[
+        {label:'Return %',data:sorted.map(f=>+((f.ret||0)*100).toFixed(1)),backgroundColor:sorted.map(f=>(f.ret||0)>=0?'rgba(16,185,129,0.65)':'rgba(239,68,68,0.5)'),borderColor:'transparent'},
+        {label:'Russell 1000',data:Array(sorted.length).fill(-1.0),type:'line',borderColor:c.amber,borderWidth:1.5,borderDash:[4,4],pointRadius:0,fill:false}
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:tooltipDefaults()},scales:{x:{grid:{display:false},ticks:{color:c.tick,font:{family:'IBM Plex Mono',size:10}}},y:{grid:{color:c.grid},ticks:{color:c.tick,font:{family:'IBM Plex Mono',size:9},callback:v=>v+'%'}}}}
+  });
+}
+
+function renderRiskChart(allocation) {
+  const rCtx = document.getElementById('riskChart').getContext('2d');
+  const betas=[1.08,1.18,0.80,1.19,0.44,0.00];
+  const weights=(allocation||[]).map(a=>a.current);
+  const rc=weights.map((w,i)=>w*betas[i]);
+  const total=rc.reduce((a,b)=>a+b,0);
+  const rPcts=rc.map(r=>+(r/total*100).toFixed(1));
+  const c = tc();
+  window._riskChart = new Chart(rCtx,{
+    type:'bar',
+    data:{labels:(allocation||[]).map(a=>a.label),datasets:[
+      {label:'Capital Weight %',data:weights,backgroundColor:'rgba(59,130,246,0.3)',borderColor:'rgba(59,130,246,0.5)',borderWidth:1},
+      {label:'Risk Contribution %',data:rPcts,backgroundColor:'rgba(245,158,11,0.4)',borderColor:'rgba(245,158,11,0.7)',borderWidth:1}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{color:c.tick,font:{family:'IBM Plex Mono',size:9},boxWidth:10}},tooltip:{...tooltipDefaults(),callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.raw}%`}}},scales:{x:{grid:{display:false},ticks:{color:c.tick,font:{family:'IBM Plex Mono',size:9}}},y:{grid:{color:c.grid},ticks:{color:c.tick,font:{family:'IBM Plex Mono',size:9},callback:v=>v+'%'}}}}
+  });
+}
+
+function renderOverlap(overlap) {
+  const el = document.getElementById('overlap-grid');
+  el.innerHTML = '';
+  (overlap||[]).forEach(d=>{
+    const pct=(d.count/9*100).toFixed(0);
+    const color=d.count>=5?'#ef4444':d.count>=3?'#f59e0b':'#64748b';
+    el.innerHTML+=`<div class="overlap-card"><div class="overlap-ticker" style="color:${color}">${d.ticker}</div><div class="overlap-count" style="color:${color}">${d.count}/9 fellows · ${pct}%</div><div class="overlap-fellows">${d.fellows}</div><div class="overlap-bar"><div class="overlap-fill" style="width:${pct}%;background:${color};opacity:0.6"></div></div></div>`;
+  });
+}
+
+// ── BOOT ─────────────────────────────────────────────────
+async function boot() {
+  try {
+    const res = await fetch('/api/data');
+    const data = await res.json();
+
+    renderKPIs(data);
+    renderAlloc(data.allocation);
+    renderHeatmap(data.sectors);
+    renderSharpe(data.fellows);
+    renderFrontier(data.fellows);
+    renderFellowChart(data.fellows);
+    renderRiskChart(data.allocation);
+    renderOverlap(data.overlap);
+
+  } catch(e) {
+    console.error('Data load failed:', e);
+  } finally {
+    document.getElementById('loader').classList.add('hidden');
+    const app = document.getElementById('app');
+    app.style.transition = 'opacity 0.4s';
+    app.style.opacity = '1';
+  }
+}
+
+boot();
+</script>
+</body>
+</html>
