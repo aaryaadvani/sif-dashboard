@@ -1,12 +1,8 @@
 {
   "name": "sif-tpa-dashboard",
   "version": "1.0.0",
-  "description": "UCLA Anderson SIF Total Portfolio Approach Dashboard",
-  "scripts": {
-    "dev": "vercel dev",
-    "build": "echo 'No build step required'"
-  },
   "dependencies": {
+    "@upstash/redis": "^1.28.0",
     "pdf-parse": "^1.1.1"
   }
 }
