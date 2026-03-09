@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SIF — Sector Drill-Down</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#080c0f;--surface:#0d1318;--surface2:#121a21;--border:#1e2d38;
+    --amber:#f59e0b;--green:#10b981;--red:#ef4444;--blue:#3b82f6;
+    --text:#e2e8f0;--muted:#64748b;
+    --mono:'IBM Plex Mono',monospace;--display:'Bebas Neue',sans-serif;
+  }
+  [data-theme="light"] {
+    --bg:#f4f1eb;--surface:#ffffff;--surface2:#f0ece2;--border:#d6cfc0;
+    --amber:#b45309;--green:#047857;--red:#dc2626;--blue:#1d4ed8;
+    --text:#1c1917;--muted:#78716c;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:var(--mono);min-height:100vh;transition:background 0.3s,color 0.3s;}
+  body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(245,158,11,0.015) 1px,transparent 1px),linear-gradient(90deg,rgba(245,158,11,0.015) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+
+  .wrapper{position:relative;z-index:1;max-width:1400px;margin:0 auto;padding:24px;}
+
+  /* LOADER */
+  #loader{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:100;transition:opacity 0.4s;}
+  #loader.hidden{opacity:0;pointer-events:none;}
+  .loader-ring{width:36px;height:36px;border:2px solid var(--border);border-top-color:var(--amber);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 14px;}
+  .loader-text{font-size:10px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;text-align:center;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* HEADER */
+  header{display:flex;align-items:flex-end;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:18px;margin-bottom:24px;}
+  .back{display:inline-flex;align-items:center;gap:6px;font-size:10px;color:var(--muted);text-decoration:none;letter-spacing:2px;text-transform:uppercase;transition:color 0.2s;margin-bottom:6px;}
+  .back:hover{color:var(--amber);}
+  .back svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2;}
+  h1{font-family:var(--display);font-size:44px;letter-spacing:3px;color:var(--amber);line-height:1;}
+  .sector-sub{font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-top:3px;}
+  .header-right{text-align:right;}
+  .btn{display:inline-flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);font-family:var(--mono);font-size:9px;letter-spacing:2px;text-transform:uppercase;padding:6px 12px;cursor:pointer;transition:color 0.2s,border-color 0.2s;}
+  .btn:hover{border-color:var(--amber);color:var(--amber);}
+  .btn svg{width:11px;height:11px;fill:currentColor;}
+
+  /* SECTOR SUMMARY BAR */
+  .summary-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;}
+  .summary-card{background:var(--surface);border:1px solid var(--border);padding:14px 18px;position:relative;overflow:hidden;}
+  .summary-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--amber);opacity:0.5;}
+  .summary-card.green::before{background:var(--green);}
+  .summary-card.red::before{background:var(--red);}
+  .sc-label{font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;}
+  .sc-value{font-size:24px;font-family:var(--display);letter-spacing:2px;}
+  .sc-value.pos{color:var(--green);}
+  .sc-value.neg{color:var(--red);}
+  .sc-value.warn{color:var(--amber);}
+  .sc-sub{font-size:10px;color:var(--muted);margin-top:3px;}
+
+  /* STOCK CARDS */
+  .stocks-grid{display:flex;flex-direction:column;gap:16px;}
+
+  .stock-card{background:var(--surface);border:1px solid var(--border);overflow:hidden;transition:border-color 0.2s;}
+  .stock-card:hover{border-color:var(--amber);}
+
+  .stock-header{display:grid;grid-template-columns:80px 1fr auto auto auto auto;gap:16px;align-items:center;padding:18px 20px;cursor:pointer;}
+  .stock-ticker{font-family:var(--display);font-size:28px;letter-spacing:2px;color:var(--amber);}
+  .stock-name{font-size:11px;color:var(--text);margin-bottom:3px;}
+  .stock-analyst{font-size:10px;color:var(--muted);}
+
+  .stock-price{text-align:right;}
+  .price-val{font-size:18px;font-family:var(--display);letter-spacing:1px;}
+  .price-chg{font-size:10px;margin-top:2px;}
+
+  .rec-badge{padding:5px 14px;font-size:10px;letter-spacing:2px;text-transform:uppercase;text-align:center;min-width:80px;}
+  .rec-buy{background:rgba(16,185,129,0.15);color:var(--green);border:1px solid rgba(16,185,129,0.3);}
+  .rec-sell{background:rgba(239,68,68,0.15);color:var(--red);border:1px solid rgba(239,68,68,0.3);}
+  .rec-hold{background:rgba(245,158,11,0.15);color:var(--amber);border:1px solid rgba(245,158,11,0.3);}
+  .rec-na{background:rgba(100,116,139,0.1);color:var(--muted);border:1px solid var(--border);}
+
+  .expand-icon{color:var(--muted);font-size:14px;transition:transform 0.3s;}
+  .stock-card.expanded .expand-icon{transform:rotate(180deg);}
+
+  /* EXPANDED DETAIL */
+  .stock-detail{display:none;border-top:1px solid var(--border);padding:20px;}
+  .stock-card.expanded .stock-detail{display:block;}
+
+  .detail-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px;}
+
+  .detail-section{background:var(--surface2);padding:14px 16px;border:1px solid var(--border);}
+  .detail-section-title{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--amber);margin-bottom:12px;}
+
+  .detail-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:11px;}
+  .detail-row:last-child{margin-bottom:0;}
+  .detail-key{color:var(--muted);}
+  .detail-val{color:var(--text);text-align:right;}
+
+  /* TARGET GAUGE */
+  .target-gauge{margin-top:10px;}
+  .gauge-track{height:4px;background:var(--border);position:relative;margin:6px 0;}
+  .gauge-current{position:absolute;top:-4px;width:3px;height:12px;background:var(--amber);}
+  .gauge-target{position:absolute;top:-4px;width:3px;height:12px;background:var(--green);}
+  .gauge-labels{display:flex;justify-content:space-between;font-size:9px;color:var(--muted);}
+
+  /* HOLDER BARS */
+  .holder-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:10px;}
+  .holder-name{width:70px;color:var(--muted);}
+  .holder-bar-track{flex:1;height:4px;background:var(--border);}
+  .holder-bar-fill{height:100%;background:var(--amber);opacity:0.7;}
+  .holder-val{width:60px;text-align:right;color:var(--text);}
+
+  /* ANALYST CONSENSUS */
+  .consensus-row{display:flex;gap:8px;margin-top:8px;}
+  .consensus-item{flex:1;text-align:center;padding:8px 4px;background:var(--bg);border:1px solid var(--border);}
+  .consensus-count{font-size:18px;font-family:var(--display);}
+  .consensus-label{font-size:8px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-top:2px;}
+  .c-buy{color:var(--green);}
+  .c-hold{color:var(--amber);}
+  .c-sell{color:var(--red);}
+
+  .loading-rec{font-size:10px;color:var(--muted);letter-spacing:1px;animation:blink 1.2s infinite;}
+  @keyframes blink{0%,100%{opacity:1;}50%{opacity:0.3;}}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
+  .stock-card{animation:fadeUp 0.4s ease both;}
+
+  ::-webkit-scrollbar{width:4px;}
+  ::-webkit-scrollbar-track{background:var(--bg);}
+  ::-webkit-scrollbar-thumb{background:var(--border);}
+</style>
+</head>
+<body>
+
+<div id="loader">
+  <div>
+    <div class="loader-ring"></div>
+    <div class="loader-text" id="loader-text">Loading Sector Data</div>
+  </div>
+</div>
+
+<div class="wrapper" id="app" style="opacity:0">
+  <header>
+    <div>
+      <a class="back" href="/">
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        Back to Dashboard
+      </a>
+      <h1 id="sector-title">SECTOR</h1>
+      <div class="sector-sub" id="sector-sub">Equity holdings · SIF Portfolio</div>
+    </div>
+    <div class="header-right">
+      <button class="btn" onclick="toggleTheme()">
+        <svg id="themeIcon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"/></svg>
+        <span id="themeLabel">Light Mode</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="summary-bar" id="summary-bar"></div>
+  <div class="stocks-grid" id="stocks-grid"></div>
+</div>
+
+<script>
+const FMP_KEY = '7dT5zTvTH7JAv4xkCe6HKoFOp2AhwF6i';
+
+// ── THEME ─────────────────────────────────────────────
+let isLight = false;
+const SUN = `<path d="M12 4.5a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0112 4.5zm0 13.5a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0112 18zm7.5-6.75a.75.75 0 000-1.5h-1.5a.75.75 0 000 1.5h1.5zm-15 0a.75.75 0 000-1.5H3a.75.75 0 000 1.5h1.5zm12.61-4.86a.75.75 0 00-1.06-1.06l-1.06 1.06a.75.75 0 001.06 1.06l1.06-1.06zM6.34 17.72a.75.75 0 001.06-1.06L6.34 15.6a.75.75 0 00-1.06 1.06l1.06 1.06zM17.66 17.72l-1.06-1.06a.75.75 0 011.06-1.06l1.06 1.06a.75.75 0 01-1.06 1.06zM5.28 6.22a.75.75 0 011.06 0l1.06 1.06A.75.75 0 116.34 8.34L5.28 7.28a.75.75 0 010-1.06zM12 7.5a4.5 4.5 0 100 9 4.5 4.5 0 000-9z"/>`;
+const MOON = `<path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"/>`;
+function toggleTheme() {
+  isLight = !isLight;
+  document.documentElement.setAttribute('data-theme', isLight ? 'light' : 'dark');
+  document.getElementById('themeIcon').innerHTML = isLight ? SUN : MOON;
+  document.getElementById('themeLabel').textContent = isLight ? 'Dark Mode' : 'Light Mode';
+}
+
+// ── PORTFOLIO DATA ─────────────────────────────────────
+const PORTFOLIO = {
+  'Information Technology': [
+    { ticker:'META', name:'Meta Platforms Inc', analysts:['Aarya','JP','Kellie','Owen'], unitCost:612.99, currentPrice:644.86, qty:472, marketValue:304374, weight:7.0, beta:1.24, targetPrice:866.00, gainLoss:5.2 },
+    { ticker:'GOOGL', name:'Alphabet Inc', analysts:['Boram','Luis'], unitCost:62.34, currentPrice:298.48, qty:379, marketValue:113135, weight:2.6, beta:1.01, targetPrice:350.00, gainLoss:378.8 },
+    { ticker:'MSFT', name:'Microsoft Corp', analysts:['Aarya','Kellie','Rodrigo'], unitCost:434.09, currentPrice:408.96, qty:315, marketValue:128822, weight:3.0, beta:1.07, targetPrice:630.00, gainLoss:-5.8 },
+    { ticker:'DDOG', name:'Datadog Inc', analysts:['Leon'], unitCost:134.32, currentPrice:125.75, qty:300, marketValue:37725, weight:0.9, beta:1.16, targetPrice:206.00, gainLoss:-6.4 },
+    { ticker:'PANW', name:'Palo Alto Networks', analysts:['Isabella'], unitCost:204.05, currentPrice:165.05, qty:260, marketValue:42913, weight:1.0, beta:1.01, targetPrice:245.57, gainLoss:-19.1 },
+  ],
+  'Consumer Discretionary': [
+    { ticker:'AMZN', name:'Amazon.com Inc', analysts:['Isabella','JP','Kellie','Rodrigo'], unitCost:194.48, currentPrice:213.12, qty:744, marketValue:158561, weight:3.7, beta:0.83, targetPrice:220.00, gainLoss:9.6 },
+    { ticker:'DKNG', name:'DraftKings Inc', analysts:['JP','Isabella'], unitCost:42.06, currentPrice:25.15, qty:855, marketValue:21503, weight:0.5, beta:1.89, targetPrice:40.66, gainLoss:-40.2 },
+    { ticker:'RCL', name:'Royal Caribbean Cruises', analysts:['Luis'], unitCost:312.25, currentPrice:278.08, qty:85, marketValue:23637, weight:0.5, beta:1.51, targetPrice:367.00, gainLoss:-10.9 },
+    { ticker:'MELI', name:'MercadoLibre Inc', analysts:['Rodrigo','Aarya'], unitCost:1927.70, currentPrice:1787.86, qty:67, marketValue:119787, weight:2.8, beta:1.40, targetPrice:3053.86, gainLoss:-7.3 },
+    { ticker:'CASY', name:'Caseys General Stores', analysts:['Owen'], unitCost:625.69, currentPrice:664.60, qty:42, marketValue:27913, weight:0.6, beta:1.30, targetPrice:null, gainLoss:6.2 },
+  ],
+  'Financials': [
+    { ticker:'JPM', name:'JPMorgan Chase & Co', analysts:['Luis','Kellie','Leon'], unitCost:290.54, currentPrice:289.48, qty:498, marketValue:144161, weight:3.3, beta:1.07, targetPrice:293.00, gainLoss:-0.4 },
+    { ticker:'C', name:'Citigroup Inc', analysts:['Luis','Rodrigo'], unitCost:73.97, currentPrice:106.53, qty:806, marketValue:85863, weight:2.0, beta:1.30, targetPrice:100.45, gainLoss:44.0 },
+    { ticker:'AXP', name:'American Express Co', analysts:['Owen'], unitCost:305.07, currentPrice:301.00, qty:95, marketValue:28595, weight:0.7, beta:1.23, targetPrice:294.51, gainLoss:-1.3 },
+    { ticker:'COF', name:'Capital One Financial', analysts:['Aarya'], unitCost:237.07, currentPrice:187.71, qty:113, marketValue:21211, weight:0.5, beta:0.39, targetPrice:190.00, gainLoss:-20.8 },
+    { ticker:'BRK.B', name:'Berkshire Hathaway Inc', analysts:['Boram'], unitCost:557.95, currentPrice:498.98, qty:150, marketValue:74847, weight:1.7, beta:0.88, targetPrice:580.00, gainLoss:-10.6 },
+  ],
+  'Consumer Staples': [
+    { ticker:'NKE', name:'Nike Inc', analysts:['Kellie','Isabella'], unitCost:58.78, currentPrice:57.01, qty:1185, marketValue:67557, weight:1.6, beta:1.23, targetPrice:74.41, gainLoss:-3.0 },
+    { ticker:'BUD', name:'Anheuser-Busch InBev', analysts:['Rodrigo'], unitCost:70.76, currentPrice:73.65, qty:400, marketValue:29460, weight:0.7, beta:0.68, targetPrice:78.68, gainLoss:4.1 },
+    { ticker:'KO', name:'Coca-Cola Co', analysts:['Boram'], unitCost:76.67, currentPrice:77.04, qty:1050, marketValue:80892, weight:1.9, beta:0.47, targetPrice:80.00, gainLoss:0.5 },
+    { ticker:'STZ', name:'Constellation Brands', analysts:['Isabella'], unitCost:155.65, currentPrice:146.47, qty:300, marketValue:43941, weight:1.0, beta:1.11, targetPrice:202.49, gainLoss:-5.9 },
+  ],
+  'Communications': [
+    { ticker:'DASH', name:'DoorDash Inc', analysts:['Aarya'], unitCost:251.39, currentPrice:179.17, qty:289, marketValue:51780, weight:1.2, beta:1.16, targetPrice:245.00, gainLoss:-28.7 },
+    { ticker:'DIS', name:'The Walt Disney Co', analysts:['JP'], unitCost:108.72, currentPrice:101.54, qty:215, marketValue:21831, weight:0.5, beta:1.16, targetPrice:137.07, gainLoss:-6.6 },
+    { ticker:'NFLX', name:'Netflix Inc', analysts:['Boram'], unitCost:161.22, currentPrice:99.02, qty:350, marketValue:34657, weight:0.8, beta:1.58, targetPrice:122.47, gainLoss:-38.6 },
+  ],
+  'Industrials': [
+    { ticker:'CRWD', name:'CrowdStrike Holdings', analysts:['Owen'], unitCost:607.64, currentPrice:428.99, qty:55, marketValue:23594, weight:0.5, beta:1.22, targetPrice:408.62, gainLoss:-29.4 },
+    { ticker:'GE', name:'General Electric Co', analysts:['Boram'], unitCost:339.38, currentPrice:323.11, qty:100, marketValue:32311, weight:0.7, beta:1.31, targetPrice:400.00, gainLoss:-4.8 },
+  ],
+  'Energy': [
+    { ticker:'CVX', name:'Chevron Corp', analysts:['Luis'], unitCost:154.08, currentPrice:189.94, qty:125, marketValue:23743, weight:0.5, beta:0.83, targetPrice:185.00, gainLoss:23.3 },
+    { ticker:'ETN', name:'Eaton Corporation plc', analysts:['Aarya'], unitCost:377.04, currentPrice:347.75, qty:95, marketValue:33036, weight:0.8, beta:0.61, targetPrice:444.79, gainLoss:-7.8 },
+  ],
+  'Healthcare': [
+    { ticker:'BSX', name:'Boston Scientific Corp', analysts:['JP'], unitCost:75.71, currentPrice:71.35, qty:340, marketValue:24259, weight:0.6, beta:0.68, targetPrice:98.20, gainLoss:-5.8 },
+  ],
+  'Real Estate': [
+    { ticker:'PEB', name:'Pebblebrook Hotel Trust', analysts:['Leon'], unitCost:9.92, currentPrice:12.81, qty:4500, marketValue:57645, weight:1.3, beta:1.80, targetPrice:13.35, gainLoss:29.1 },
+  ],
+};
+
+// Fellow individual holdings for overlap detail
+const FELLOW_HOLDINGS = {
+  'META':  [{name:'Aarya',value:74159},{name:'JP',value:29019},{name:'Kellie',value:50944},{name:'Leon',value:74159},{name:'Luis',value:29019},{name:'Owen',value:47075}],
+  'AMZN':  [{name:'Isabella',value:31968},{name:'JP',value:26853},{name:'Kellie',value:42411},{name:'Rodrigo',value:57329}],
+  'GOOGL': [{name:'JP',value:28356},{name:'Luis',value:45966},{name:'Owen',value:38802}],
+  'MSFT':  [{name:'Isabella',value:24538},{name:'Kellie',value:56845},{name:'Rodrigo',value:47439}],
+  'JPM':   [{name:'Isabella',value:34738},{name:'Kellie',value:37053},{name:'Leon',value:33290},{name:'Luis',value:39080}],
+  'C':     [{name:'Luis',value:50708},{name:'Rodrigo',value:35155}],
+  'MELI':  [{name:'Aarya',value:35757},{name:'Leon',value:48272},{name:'Rodrigo',value:35757}],
+  'NKE':   [{name:'Isabella',value:39907},{name:'Kellie',value:27650}],
+  'DDOG':  [{name:'Leon',value:37725}],
+  'DASH':  [{name:'Aarya',value:51780}],
+  'COF':   [{name:'Aarya',value:21211}],
+  'DKNG':  [{name:'JP',value:21503},{name:'Isabella',value:0}],
+  'CRWD':  [{name:'Owen',value:23594}],
+  'GE':    [{name:'Boram',value:32311}],
+  'RCL':   [{name:'Luis',value:23637}],
+  'CVX':   [{name:'Luis',value:23743}],
+  'PANW':  [{name:'Isabella',value:42913}],
+  'BUD':   [{name:'Rodrigo',value:29460}],
+  'BRK.B': [{name:'Boram',value:74847}],
+  'KO':    [{name:'Boram',value:80892}],
+  'STZ':   [{name:'Isabella',value:43941}],
+  'BSX':   [{name:'JP',value:24259}],
+  'DIS':   [{name:'JP',value:21831}],
+  'NFLX':  [{name:'Boram',value:34657}],
+  'CASY':  [{name:'Owen',value:27913}],
+  'AXP':   [{name:'Owen',value:28595}],
+  'ETN':   [{name:'Aarya',value:33036}],
+  'PEB':   [{name:'Leon',value:57645}],
+};
+
+// ── GET SECTOR FROM URL ────────────────────────────────
+const params = new URLSearchParams(window.location.search);
+const sector = params.get('sector') || 'Information Technology';
+const stocks = PORTFOLIO[sector] || [];
+
+// ── FETCH LIVE RECOMMENDATIONS ─────────────────────────
+async function fetchRec(ticker) {
+  try {
+    const res = await fetch(`https://financialmodelingprep.com/api/v3/analyst-stock-recommendations/${ticker}?limit=1&apikey=${FMP_KEY}`);
+    const data = await res.json();
+    if (data && data[0]) return data[0];
+    return null;
+  } catch { return null; }
+}
+
+async function fetchRating(ticker) {
+  try {
+    const res = await fetch(`https://financialmodelingprep.com/api/v3/rating/${ticker}?apikey=${FMP_KEY}`);
+    const data = await res.json();
+    if (data && data[0]) return data[0];
+    return null;
+  } catch { return null; }
+}
+
+// ── RENDER SUMMARY BAR ─────────────────────────────────
+function renderSummary(stocks) {
+  const totalValue = stocks.reduce((a,s) => a+s.marketValue, 0);
+  const totalWeight = stocks.reduce((a,s) => a+s.weight, 0);
+  const avgBeta = (stocks.reduce((a,s) => a+s.beta, 0) / stocks.length).toFixed(2);
+  const avgGain = (stocks.reduce((a,s) => a+s.gainLoss, 0) / stocks.length).toFixed(1);
+  const gainClass = parseFloat(avgGain) >= 0 ? 'pos' : 'neg';
+
+  document.getElementById('summary-bar').innerHTML = `
+    <div class="summary-card">
+      <div class="sc-label">Sector Market Value</div>
+      <div class="sc-value warn">$${(totalValue/1000).toFixed(0)}K</div>
+      <div class="sc-sub">${stocks.length} positions</div>
+    </div>
+    <div class="summary-card">
+      <div class="sc-label">Portfolio Weight</div>
+      <div class="sc-value warn">${totalWeight.toFixed(1)}%</div>
+      <div class="sc-sub">of total SIF portfolio</div>
+    </div>
+    <div class="summary-card ${parseFloat(avgGain)>=0?'green':'red'}">
+      <div class="sc-label">Avg Return ITD</div>
+      <div class="sc-value ${gainClass}">${avgGain > 0 ? '+':''}${avgGain}%</div>
+      <div class="sc-sub">since inception</div>
+    </div>
+    <div class="summary-card">
+      <div class="sc-label">Avg Beta</div>
+      <div class="sc-value warn">${avgBeta}</div>
+      <div class="sc-sub">beta-weighted risk</div>
+    </div>
+  `;
+}
+
+// ── RENDER STOCK CARD ──────────────────────────────────
+function recClass(rec) {
+  if (!rec) return 'rec-na';
+  const r = rec.toLowerCase();
+  if (r.includes('buy') || r.includes('overweight') || r.includes('outperform')) return 'rec-buy';
+  if (r.includes('sell') || r.includes('underweight') || r.includes('underperform')) return 'rec-sell';
+  return 'rec-hold';
+}
+
+function recLabel(rec) {
+  if (!rec) return '—';
+  const r = rec.toLowerCase();
+  if (r.includes('strong buy')) return 'STRONG BUY';
+  if (r.includes('buy') || r.includes('overweight') || r.includes('outperform')) return 'BUY';
+  if (r.includes('sell') || r.includes('underweight') || r.includes('underperform')) return 'SELL';
+  if (r.includes('hold') || r.includes('neutral') || r.includes('equal')) return 'HOLD';
+  return rec.toUpperCase().slice(0,10);
+}
+
+function upside(stock) {
+  if (!stock.targetPrice) return null;
+  return ((stock.targetPrice - stock.currentPrice) / stock.currentPrice * 100).toFixed(1);
+}
+
+function renderStockCard(stock, index) {
+  const up = upside(stock);
+  const upsideColor = up === null ? 'var(--muted)' : parseFloat(up) > 0 ? 'var(--green)' : 'var(--red)';
+  const gainColor = stock.gainLoss >= 0 ? 'var(--green)' : 'var(--red)';
+  const holders = FELLOW_HOLDINGS[stock.ticker] || [{name: stock.analysts[0], value: stock.marketValue}];
+  const maxHolding = Math.max(...holders.map(h => h.value));
+
+  const card = document.createElement('div');
+  card.className = 'stock-card';
+  card.style.animationDelay = `${index * 0.05}s`;
+  card.id = `card-${stock.ticker}`;
+
+  card.innerHTML = `
+    <div class="stock-header" onclick="toggleCard('${stock.ticker}')">
+      <div class="stock-ticker">${stock.ticker}</div>
+      <div>
+        <div class="stock-name">${stock.name}</div>
+        <div class="stock-analyst">Analyst: ${stock.analysts.join(', ')}</div>
+      </div>
+      <div class="stock-price">
+        <div class="price-val">$${stock.currentPrice.toLocaleString()}</div>
+        <div class="price-chg" style="color:${gainColor}">${stock.gainLoss >= 0 ? '+' : ''}${stock.gainLoss}% ITD</div>
+      </div>
+      <div>
+        <div style="font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Weight</div>
+        <div style="font-size:14px;font-family:var(--display);color:var(--amber)">${stock.weight}%</div>
+      </div>
+      <div class="rec-badge rec-na" id="rec-${stock.ticker}">LOADING</div>
+      <div class="expand-icon">▼</div>
+    </div>
+
+    <div class="stock-detail">
+      <div class="detail-grid">
+
+        <div class="detail-section">
+          <div class="detail-section-title">Price & Target</div>
+          <div class="detail-row"><span class="detail-key">Current Price</span><span class="detail-val">$${stock.currentPrice.toLocaleString()}</span></div>
+          <div class="detail-row"><span class="detail-key">Cost Basis</span><span class="detail-val">$${stock.unitCost.toFixed(2)}</span></div>
+          <div class="detail-row"><span class="detail-key">Target Price</span><span class="detail-val" style="color:var(--green)">${stock.targetPrice ? '$'+stock.targetPrice.toLocaleString() : '—'}</span></div>
+          <div class="detail-row"><span class="detail-key">Upside / Downside</span><span class="detail-val" style="color:${upsideColor}">${up !== null ? (parseFloat(up)>0?'+':'')+up+'%' : '—'}</span></div>
+          ${stock.targetPrice ? `
+          <div class="target-gauge">
+            <div class="gauge-track">
+              <div class="gauge-current" style="left:${Math.min(Math.max((stock.currentPrice/(stock.targetPrice*1.2))*100,2),98)}%"></div>
+              <div class="gauge-target" style="left:${Math.min((stock.targetPrice/(stock.targetPrice*1.2))*100,98)}%"></div>
+            </div>
+            <div class="gauge-labels"><span>$0</span><span style="color:var(--amber)">Now</span><span style="color:var(--green)">Target</span></div>
+          </div>` : ''}
+        </div>
+
+        <div class="detail-section">
+          <div class="detail-section-title">Position Info</div>
+          <div class="detail-row"><span class="detail-key">Shares</span><span class="detail-val">${stock.qty.toLocaleString()}</span></div>
+          <div class="detail-row"><span class="detail-key">Market Value</span><span class="detail-val">$${stock.marketValue.toLocaleString()}</span></div>
+          <div class="detail-row"><span class="detail-key">Portfolio Weight</span><span class="detail-val">${stock.weight}%</span></div>
+          <div class="detail-row"><span class="detail-key">Beta</span><span class="detail-val">${stock.beta}</span></div>
+          <div class="detail-row"><span class="detail-key">Gain / Loss ITD</span><span class="detail-val" style="color:${gainColor}">${stock.gainLoss >= 0 ? '+' : ''}${stock.gainLoss}%</span></div>
+          <div class="detail-section-title" style="margin-top:14px">Fellow Holdings</div>
+          ${holders.map(h => `
+            <div class="holder-row">
+              <div class="holder-name">${h.name}</div>
+              <div class="holder-bar-track"><div class="holder-bar-fill" style="width:${(h.value/maxHolding*100).toFixed(0)}%"></div></div>
+              <div class="holder-val">$${(h.value/1000).toFixed(1)}K</div>
+            </div>`).join('')}
+        </div>
+
+        <div class="detail-section">
+          <div class="detail-section-title">Analyst Consensus</div>
+          <div id="consensus-${stock.ticker}">
+            <div class="loading-rec">Fetching live data...</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  return card;
+}
+
+function toggleCard(ticker) {
+  const card = document.getElementById(`card-${ticker}`);
+  card.classList.toggle('expanded');
+}
+
+// ── LOAD RECOMMENDATIONS ───────────────────────────────
+async function loadRec(stock) {
+  const [rec, rating] = await Promise.all([fetchRec(stock.ticker), fetchRating(stock.ticker)]);
+
+  // Update badge
+  const badge = document.getElementById(`rec-${stock.ticker}`);
+  if (badge) {
+    const recommendation = rec?.analystRatingsStrongBuy !== undefined
+      ? getBestRec(rec)
+      : rating?.ratingRecommendation || null;
+    badge.className = `rec-badge ${recClass(recommendation)}`;
+    badge.textContent = recLabel(recommendation);
+  }
+
+  // Update consensus section
+  const consensusEl = document.getElementById(`consensus-${stock.ticker}`);
+  if (consensusEl) {
+    if (rec && (rec.analystRatingsStrongBuy !== undefined)) {
+      const strongBuy = rec.analystRatingsStrongBuy || 0;
+      const buy = rec.analystRatingsBuy || 0;
+      const hold = rec.analystRatingsHold || 0;
+      const sell = rec.analystRatingsSell || 0;
+      const strongSell = rec.analystRatingsStrongSell || 0;
+      const total = strongBuy + buy + hold + sell + strongSell;
+
+      consensusEl.innerHTML = `
+        <div class="consensus-row">
+          <div class="consensus-item"><div class="consensus-count c-buy">${strongBuy}</div><div class="consensus-label">Strong Buy</div></div>
+          <div class="consensus-item"><div class="consensus-count c-buy">${buy}</div><div class="consensus-label">Buy</div></div>
+          <div class="consensus-item"><div class="consensus-count c-hold">${hold}</div><div class="consensus-label">Hold</div></div>
+          <div class="consensus-item"><div class="consensus-count c-sell">${sell}</div><div class="consensus-label">Sell</div></div>
+          <div class="consensus-item"><div class="consensus-count c-sell">${strongSell}</div><div class="consensus-label">Str. Sell</div></div>
+        </div>
+        <div style="margin-top:12px">
+          ${rating ? `
+          <div class="detail-row"><span class="detail-key">FMP Rating</span><span class="detail-val" style="color:var(--amber)">${rating.rating || '—'}</span></div>
+          <div class="detail-row"><span class="detail-key">Rating Score</span><span class="detail-val">${rating.ratingScore || '—'} / 5</span></div>
+          <div class="detail-row"><span class="detail-key">Recommendation</span><span class="detail-val">${rating.ratingRecommendation || '—'}</span></div>
+          ` : '<div style="font-size:10px;color:var(--muted)">Rating data unavailable</div>'}
+          <div class="detail-row" style="margin-top:8px"><span class="detail-key">Total Analysts</span><span class="detail-val">${total}</span></div>
+          <div class="detail-row"><span class="detail-key">As of</span><span class="detail-val" style="font-size:9px">${rec.date || '—'}</span></div>
+        </div>
+      `;
+    } else if (rating) {
+      consensusEl.innerHTML = `
+        <div class="detail-row"><span class="detail-key">FMP Rating</span><span class="detail-val" style="color:var(--amber)">${rating.rating || '—'}</span></div>
+        <div class="detail-row"><span class="detail-key">Score</span><span class="detail-val">${rating.ratingScore || '—'} / 5</span></div>
+        <div class="detail-row"><span class="detail-key">Recommendation</span><span class="detail-val">${rating.ratingRecommendation || '—'}</span></div>
+      `;
+    } else {
+      consensusEl.innerHTML = `<div style="font-size:10px;color:var(--muted)">No analyst data available for ${stock.ticker}</div>`;
+    }
+  }
+}
+
+function getBestRec(rec) {
+  const sb = rec.analystRatingsStrongBuy || 0;
+  const b  = rec.analystRatingsBuy || 0;
+  const h  = rec.analystRatingsHold || 0;
+  const s  = rec.analystRatingsSell || 0;
+  const ss = rec.analystRatingsStrongSell || 0;
+  const max = Math.max(sb+b, h, s+ss);
+  if (max === sb+b) return 'buy';
+  if (max === s+ss) return 'sell';
+  return 'hold';
+}
+
+// ── BOOT ───────────────────────────────────────────────
+async function boot() {
+  document.getElementById('sector-title').textContent = sector.toUpperCase();
+  document.getElementById('sector-sub').textContent = `${stocks.length} positions · SIF Equity Portfolio`;
+  document.title = `SIF — ${sector}`;
+
+  renderSummary(stocks);
+
+  const grid = document.getElementById('stocks-grid');
+  stocks.forEach((stock, i) => {
+    grid.appendChild(renderStockCard(stock, i));
+  });
+
+  document.getElementById('loader').classList.add('hidden');
+  const app = document.getElementById('app');
+  app.style.transition = 'opacity 0.4s';
+  app.style.opacity = '1';
+
+  // Load recommendations in background
+  document.getElementById('loader-text').textContent = 'Fetching Live Data';
+  stocks.forEach(stock => loadRec(stock));
+}
+
+boot();
+</script>
+</body>
+</html>

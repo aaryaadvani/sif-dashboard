@@ -79,8 +79,8 @@
   .drift-ok{background:rgba(100,116,139,0.15);color:var(--muted);}
 
   .heatmap-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
-  .heat-cell{padding:12px;border:1px solid transparent;transition:border-color 0.2s;}
-  .heat-cell:hover{border-color:var(--amber);}
+  .heat-cell{padding:12px;border:1px solid transparent;transition:border-color 0.2s,transform 0.15s;cursor:pointer;}
+  .heat-cell:hover{border-color:var(--amber);transform:translateY(-2px);}
   .heat-sector{font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;}
   .heat-pct{font-size:20px;font-family:var(--display);letter-spacing:1px;}
   .heat-drift{font-size:10px;margin-top:4px;}
@@ -347,6 +347,13 @@ function renderAlloc(allocation) {
 function renderHeatmap(sectors) {
   const el = document.getElementById('heatmap');
   el.innerHTML = '';
+  const nameMap = {
+    'Info Tech':'Information Technology','Consumer Disc':'Consumer Discretionary',
+    'Financials':'Financials','Consumer Stap':'Consumer Staples',
+    'Communications':'Communications','Real Estate':'Real Estate',
+    'Energy':'Energy','Industrials':'Industrials','Healthcare':'Healthcare',
+    'Materials':'Materials','Utilities':'Utilities',
+  };
   (sectors || []).forEach(s => {
     const drift = s.portfolio - s.benchmark;
     const intensity = Math.min(Math.abs(drift) / 15, 1);
@@ -355,7 +362,11 @@ function renderHeatmap(sectors) {
     else if (drift < -2) { bg = `rgba(239,68,68,${0.08+intensity*0.25})`; color = '#ef4444'; }
     else { bg = 'rgba(16,185,129,0.08)'; color = '#10b981'; }
     const sign = drift >= 0 ? '+' : '';
-    el.innerHTML += `<div class="heat-cell" style="background:${bg}"><div class="heat-sector">${s.name}</div><div class="heat-pct" style="color:${color}">${s.portfolio}%</div><div class="heat-drift" style="color:${color}">${sign}${drift.toFixed(1)}% vs bmk</div></div>`;
+    const fullName = nameMap[s.name] || s.name;
+    const hasStocks = ['Information Technology','Consumer Discretionary','Financials','Consumer Staples','Communications','Industrials','Energy','Healthcare','Real Estate'].includes(fullName);
+    const clickAttr = hasStocks ? `onclick="window.location.href='/sector?sector=${encodeURIComponent(fullName)}'"` : '';
+    const tooltip = hasStocks ? 'title="Click to view holdings"' : '';
+    el.innerHTML += `<div class="heat-cell" style="background:${bg}" ${clickAttr} ${tooltip}><div class="heat-sector">${s.name}${hasStocks ? ' →' : ''}</div><div class="heat-pct" style="color:${color}">${s.portfolio}%</div><div class="heat-drift" style="color:${color}">${sign}${drift.toFixed(1)}% vs bmk</div></div>`;
   });
 }
 
