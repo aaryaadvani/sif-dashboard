@@ -1,7 +1,8 @@
 // api/upload.js
 // Accepts multipart PDF upload, parses key data, stores in Vercel KV
 
-import { kv } from '@vercel/kv';
+import { Redis } from '@upstash/redis';
+const redis = Redis.fromEnv();
 import formidable from 'formidable';
 import fs from 'fs';
 import pdf from 'pdf-parse';
@@ -108,8 +109,8 @@ export default async function handler(req, res) {
     const { text } = await pdf(buffer);
     const data = parseText(text);
 
-    await kv.set('sif:latest', JSON.stringify(data));
-    await kv.set('sif:history:' + Date.now(), JSON.stringify(data));
+    await redis.set(`sif:latest', JSON.stringify(data));
+    await redis.set(`sif:history:' + Date.now(), JSON.stringify(data));
 
     res.status(200).json({ success: true, parsedAt: data.parsedAt, preview: { aum: data.aum, cumReturn: data.cumReturn } });
   } catch (err) {

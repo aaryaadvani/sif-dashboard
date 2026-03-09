@@ -1,7 +1,6 @@
-// api/data.js
-// Returns latest SIF data from KV store, with fallback to seed data
+import { Redis } from '@upstash/redis';
 
-import { kv } from '@vercel/kv';
+const redis = Redis.fromEnv();
 
 const SEED = {
   parsedAt: '2026-03-06T00:00:00.000Z',
@@ -57,15 +56,12 @@ const SEED = {
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate');
-
   try {
-    const raw = await kv.get('sif:latest');
-    const data = raw ? JSON.parse(raw) : SEED;
-    // Always merge overlap from seed if not in parsed data
+    const data = await redis.get('sif:latest');
+    if (!data) return res.status(200).json(SEED);
     if (!data.overlap) data.overlap = SEED.overlap;
     res.status(200).json(data);
   } catch (err) {
-    // KV not configured yet — return seed data
     res.status(200).json(SEED);
   }
 }
